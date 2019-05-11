@@ -82,12 +82,14 @@ class Process:
     data = {}
     last_called = None
     cumulative_fuel_usage = 0
-    tester = None
+    
+    network = None
 
 
     def __init__(self, tester):
-        self.tester = tester
-
+        ### CHANGE TO SUPPORT STREAMING ###
+        self.network = tester
+        #### END CHANGE ###
         self.last_called = time.time()
         self.updateMeta()
 
@@ -95,7 +97,9 @@ class Process:
 
     def updateMeta(self):
         while True:
-            meta = self.tester.get_metadata()
+            ### CHANGE TO SUPPORT STREAMING ###
+            meta = self.network.get_metadata()
+            #### END CHANGE ###
             if meta is not None and b'{"meta"' in meta:
                 try:
                     raw_data = string_me(meta)
@@ -152,7 +156,9 @@ class Process:
 
 
     def get_line(self):
-        row = self.tester.get_data()
+        ### CHANGE TO SUPPORT STREAMING ### 
+        row = self.network.get_data()
+        ### END CHANGE ### 
         return row
 
     def readify_samples(self):
@@ -162,23 +168,24 @@ class Process:
         for sample in samples:
             d[sample.channelMeta.name] = sample.value
 
+        #d = self.calculate_fuel_usage(d)
+
         # Convert into JSON Object and convert into bytes
-        #data = self.calculate_fuel_usage(d)
-        data = readify_data(d)
-        return data
+        return readify_data(d)
 
     def get_data(self):
         row = self.get_line()
         if row is not None and b'{\"s\":{' in row:
             try:
+                # Decode binary and convert into list
                 raw_data_decoded = row.decode("utf-8")
                 raw_data = json.loads(raw_data_decoded)
+                # Process data using channels - converting into dict
                 self.processData(raw_data['s']['d'])
             except Exception as e:
                 print(e)
-
-        display_data = self.readify_samples()
-        return display_data
+        # Make ready for transmission
+        return self.readify_samples()
 
     # def calculate_fuel_usage(self, data):
     #     time_elapsed = time.time() - self.last_called
