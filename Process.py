@@ -6,7 +6,6 @@ import platform
 import json
 
 from Utilities import replace_value_with_definition, readify_data, string_me
-from TestDAQ import DAQTester
 
 CHANNEL_TYPE_UNKNOWN = 0
 CHANNEL_TYPE_SENSOR = 1
@@ -83,22 +82,17 @@ class Process:
     last_called = None
     cumulative_fuel_usage = 0
     
-    network = None
 
 
-    def __init__(self, tester):
-        ### CHANGE TO SUPPORT STREAMING ###
-        self.network = tester
-        #### END CHANGE ###
+    def __init__(self):
         self.last_called = time.time()
-        self.updateMeta()
 
 
 
-    def updateMeta(self):
+    def updateMeta(self, raw_metadata):
         while True:
             ### CHANGE TO SUPPORT STREAMING ###
-            meta = self.network.get_metadata()
+            meta = raw_metadata
             #### END CHANGE ###
             if meta is not None and b'{"meta"' in meta:
                 try:
@@ -154,13 +148,6 @@ class Process:
             channel_config_index += 1
             mask_index += 1
 
-
-    def get_line(self):
-        ### CHANGE TO SUPPORT STREAMING ### 
-        row = self.network.get_data()
-        ### END CHANGE ### 
-        return row
-
     def readify_samples(self):
         d = {}
         samples = self.samples
@@ -173,8 +160,7 @@ class Process:
         # Convert into JSON Object and convert into bytes
         return readify_data(d)
 
-    def get_data(self):
-        row = self.get_line()
+    def get_data(self, row):
         if row is not None and b'{\"s\":{' in row:
             try:
                 # Decode binary and convert into list

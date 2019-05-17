@@ -1,10 +1,4 @@
-from Process import Process
-from TestDAQ import DAQTester
+from Network import Network
 if __name__ == "__main__":
-    tester = DAQTester()
-    processor = Process(tester)
-
-    while True:
-        data = processor.get_data()
-        print(data)
-        
+    network = Network()
+    network.start_server()
