@@ -1,11 +1,8 @@
-# server.py
-import random
-import re
+
 import time
-import datetime
-import platform
 import json
-from Utilities import replace_value_with_definition, readify_data, string_me
+import re
+
 
 CHANNEL_TYPE_UNKNOWN = 0
 CHANNEL_TYPE_SENSOR = 1
@@ -73,7 +70,6 @@ class ChannelMetaCollection(object):
             channel_metas.append(channel_meta)
 
 
-
 def do_some_stuffs_with_input(input_string):  
     """
     This is where all the processing happens.
@@ -86,7 +82,7 @@ def do_some_stuffs_with_input(input_string):
 
     return auth_string
 
-def client_thread(conn, ip, port, MAX_BUFFER_SIZE = 4096):
+def client_thread(conn, ip, port, MAX_BUFFER_SIZE = 16384):
 
     # the input is in bytes, so decode it
     input_from_client_bytes = conn.recv(MAX_BUFFER_SIZE)
@@ -104,55 +100,51 @@ def client_thread(conn, ip, port, MAX_BUFFER_SIZE = 4096):
     res = do_some_stuffs_with_input(input_from_client)
     vysl = res.encode("utf8")  # encode the result string
     conn.sendall(vysl)  # send it to client
-
-    metas = ""
-    time.sleep(5)
-    while True:
-        statement = '{"getMeta":1}' 
-        statement_encoded = statement.encode("utf8")
-        conn.sendall(statement_encoded)
-        metadata = conn.recv(MAX_BUFFER_SIZE)
-        import sys
-        siz = sys.getsizeof(input_from_client_bytes)
-        if  siz >= MAX_BUFFER_SIZE:
-            print("The length of input is probably too long: {}".format(siz))
-
-        meta = metadata.decode("utf8")
-        print("inside meta: " + meta)
-        if meta is not None and b'{"meta"' in meta:
-            try:
-                raw_data = string_me(meta)
-                metas = ChannelMetaCollection()
-                metas.fromJson(raw_data["meta"])
-            except Exception as e:
-                print(e)
-            finally:
-                print("Updated Channel Metadata")
-                break
-
-
-    status_counter = 0
+    counter = 0
+    last_token = ""
+    token = ""
+    metas = ChannelMetaCollection()
     samples = []
 
     while True:
-        status_counter = status_counter + 1 
-        if (status_counter > 60):
-            status_counter = 0
-            status_string = '{"getStatus":null}\r\n'
-            status_string_encoded = status_string.encode("utf8")  # encode the result string
-            conn.sendall(status_string_encoded)  # send it to client
-        input_from_client_bytes = conn.recv(MAX_BUFFER_SIZE)
+        data = conn.recv(MAX_BUFFER_SIZE)
         import sys
-        siz = sys.getsizeof(input_from_client_bytes)
+        siz = sys.getsizeof(data)
         if  siz >= MAX_BUFFER_SIZE:
             print("The length of input is probably too long: {}".format(siz))
-        # decode input and strip the end of line
-        input_from_client = input_from_client_bytes.decode("utf8")
-        processed_data = get_data(input_from_client, metas, samples)
+
+        data_decoded = data.decode("utf8")
+        if data_decoded.startswith('{"s"'):
+            last_token = token
+            token = data_decoded
+        else:
+            token = token + data_decoded
         
-        print(processed_data)
+        if '"meta"' in last_token:
+            full_token_json = json.loads(last_token.split("}}", 1)[0] + "}}")
+            metas.fromJson(full_token_json['s']['meta'])
+            print(metas)
+            break
+    while True:
+        data = conn.recv(MAX_BUFFER_SIZE)
+        import sys
+        siz = sys.getsizeof(data)
+        if  siz >= MAX_BUFFER_SIZE:
+            print("The length of input is probably too long: {}".format(siz))
 
-
+        data_decoded = data.decode("utf8")
+        if data_decoded.startswith('{"s"'):
+            last_token = token
+            token = data_decoded
+        else:
+            token = token + data_decoded
+        
+        if last_token != "":
+            processed_data = get_data(last_token, metas, samples)
+            print(processed_data)
+            last_token = ""
+    
+     
 def get_data(row, metas, samples):
         if row is not None and b'{\"s\":{' in row:
             try:
@@ -218,6 +210,8 @@ def readify_samples(samples):
 
     # Convert into JSON Object and convert into bytes
     return readify_data(d)
+
+
 
 def start_server():
 
