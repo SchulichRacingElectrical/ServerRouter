@@ -2,7 +2,8 @@
 import time
 import json
 import re
-
+import redis
+from Utilities import replace_value_with_definition, readify_data, string_me
 
 CHANNEL_TYPE_UNKNOWN = 0
 CHANNEL_TYPE_SENSOR = 1
@@ -83,6 +84,8 @@ def do_some_stuffs_with_input(input_string):
     return auth_string
 
 def client_thread(conn, ip, port, MAX_BUFFER_SIZE = 16384):
+    r = redis.StrictRedis(host='localhost', port=6379)
+    p = r.pubsub()
 
     # the input is in bytes, so decode it
     input_from_client_bytes = conn.recv(MAX_BUFFER_SIZE)
@@ -141,6 +144,7 @@ def client_thread(conn, ip, port, MAX_BUFFER_SIZE = 16384):
         
         if last_token != "":
             processed_data = get_data(last_token, metas, samples)
+            r.publish('streaming', processed_data)
             print(processed_data)
             last_token = ""
     
