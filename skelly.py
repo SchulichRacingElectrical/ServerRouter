@@ -128,8 +128,19 @@ def client_thread(conn, ip, port, MAX_BUFFER_SIZE = 16384):
             metas.fromJson(full_token_json['s']['meta'])
             print(metas)
             break
+    disconnect_counter = 0
     while True:
         data = conn.recv(MAX_BUFFER_SIZE)
+        if len(data) == 0:
+            disconnect_counter = disconnect_counter + 1
+            print("No data received, counter: " + disconnect_counter)
+            if disconnect_counter > 10:
+                conn.shutdown(2)
+                conn.close()
+                print("Thread closed")
+        else:
+            disconnect_counter = 0
+
         import sys
         siz = sys.getsizeof(data)
         if  siz >= MAX_BUFFER_SIZE:
@@ -145,7 +156,7 @@ def client_thread(conn, ip, port, MAX_BUFFER_SIZE = 16384):
         if last_token != "":
             processed_data = get_data(last_token, metas, samples)
             r.publish('streaming', processed_data)
-            print(processed_data)
+            #print(processed_data)
             last_token = ""
     
      
